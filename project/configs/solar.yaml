@@ -1,0 +1,66 @@
+# LSTM-Real-NVP on Solar (D=137).  Tags: [paper] / [ours] -- see exchange.yaml.
+
+dataset:
+  name: solar               # -> gluonts solar_nips
+  cache_dir: data_raw/gluonts
+  fallback_path: data_raw/solar_AL.txt.gz   # 10-minutely public file, aggregated
+                                            # to hourly by the loader
+  freq: "H"                 # [paper] Appendix A, Table 2: hourly
+  num_series: 137           # [paper] Table 2
+  total_timesteps: 7009     # [paper] Table 2
+  prediction_length: 24     # [paper] Table 2
+  context_length: 24        # [ours]
+  lags: [1, 24, 168]        # [paper] Appendix D.1, hourly data
+  time_features: ["hour_of_day", "day_of_week"]  # official Fourier pairs
+  dequantize: false
+  strict: true
+  require_gluonts: true
+
+flow:
+  type: realnvp
+  num_blocks: 5             # [paper] Appendix D.2
+  hidden: 100               # [paper] Appendix D.2
+  activation: elu
+  batch_norm: true
+  bn_min_var: 1.0e-4
+  scale_clamp: tanh
+  maf_log_scale_bound: 3.0
+  maf_mu_bound: 10.0
+
+backbone:
+  type: lstm
+  hidden_size: 40           # [ours]
+  d_model: 32               # [official] TransformerTempFlow default
+  num_layers: 2             # [ours]
+  dropout: 0.1
+  n_heads: 8
+  num_encoder_layers: 3
+  num_decoder_layers: 3
+
+training:
+  lr: 1.0e-3
+  epochs: 40
+  batch_size: 64
+  batches_per_epoch: 100
+  grad_clip: 0.0
+  maf_grad_clip: 5.0
+  seed: 42
+  val_windows: 0
+  select_metric: last
+  validation_num_samples: 20
+  validation_seed: 1729
+  validation_interval: 1
+  lr_schedule: onecycle
+  max_lr: 3.0e-3
+
+evaluation:
+  num_samples: 100
+  num_test_windows: 7       # [paper-derived] solar_nips has 7 rolling evaluations
+  temperature: 1.0
+
+# Reference numbers: copy the Solar column of Table 1 from the paper before
+# quoting anything. Our CRPS_sum is normalized the same way (divided by
+# sum_t |sum_i x_t^i|), so the two are comparable.
+
+model:
+  condition_bound: 10.0

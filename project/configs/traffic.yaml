@@ -1,0 +1,69 @@
+# Transformer-MAF on Traffic (D=963).  Tags: [paper] / [ours] -- see exchange.yaml.
+#
+# The 963-series version is the GP-Copula / GluonTS `traffic_nips` file, not the
+# LSTNet traffic.txt (which has 862 series).
+#
+# This is the dataset where the Transformer backbone pays off: §4.1 gives
+# O(T^2 * D) for the Transformer against O(T * D^2) for the RNN, so D >> T
+# favours attention. Switch backbone.type to lstm for the LSTM variants.
+
+dataset:
+  name: traffic             # -> gluonts traffic_nips
+  cache_dir: data_raw/gluonts
+  freq: "H"                 # [paper] Table 2: hourly
+  num_series: 963           # [paper] Table 2
+  total_timesteps: 10413    # [paper] Table 2
+  prediction_length: 24     # [paper] Table 2
+  context_length: 24        # [ours]
+  lags: [1, 24, 168]        # [paper] Appendix D.1
+  time_features: ["hour_of_day", "day_of_week"]  # official Fourier pairs
+  dequantize: false         # [paper] Traffic lives in (0, 1), it is not counts
+  strict: false             # known Table-2/official-archive length conflict
+  require_gluonts: true
+
+flow:
+  type: maf                 # [paper] §5.2: Transformer-MAF is the reported variant
+  num_blocks: 5
+  hidden: 100
+  activation: elu
+  batch_norm: true
+  bn_min_var: 1.0e-4
+  scale_clamp: tanh
+  maf_log_scale_bound: 3.0
+  maf_mu_bound: 10.0
+
+backbone:
+  type: transformer
+  hidden_size: 40           # [official] LSTM TempFlow cells
+  d_model: 32               # [official] TransformerTempFlow default
+  num_layers: 2             # unused by the Transformer, kept for symmetry
+  dropout: 0.1              # [paper] Appendix D.2
+  n_heads: 8                # [paper] Appendix D.2: H = 8
+  num_encoder_layers: 3     # [paper] Appendix D.2: n = 3
+  num_decoder_layers: 3     # [paper] Appendix D.2: m = 3
+
+training:
+  lr: 1.0e-3
+  epochs: 40
+  batch_size: 64            # [paper] Appendix D.2
+  batches_per_epoch: 100
+  grad_clip: 0.0
+  maf_grad_clip: 5.0
+  seed: 42
+  val_windows: 0
+  select_metric: last
+  validation_num_samples: 20
+  validation_seed: 1729
+  validation_interval: 1
+  lr_schedule: onecycle
+  max_lr: 3.0e-3
+
+evaluation:
+  num_samples: 100
+  num_test_windows: 7       # [paper-derived] traffic_nips: 7 rolling evaluations
+  temperature: 1.0
+
+# Reference numbers: copy the Traffic column of Table 1 from the paper.
+
+model:
+  condition_bound: 10.0

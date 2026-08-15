@@ -1,0 +1,82 @@
+# LSTM-MAF on Taxi (D=1214, 30-minute count data).  Tags: [paper] / [ours].
+#
+# Taxi appears in Appendix A, Table 2 and in Table 1, but it had no loader or
+# config before. Like Wikipedia it is count data (§5.2), so only its density
+# target is dequantized before scaling; lag/history inputs stay unchanged.
+#
+# Split (VERIFIED): the GluonTS taxi_30min train and test splits sit on DIFFERENT
+# calendar origins -- the gate measured train=1488 steps from 2015-01-01 and a
+# grouped test array of 1469 steps from 2016-01-01. Neither is a prefix of the
+# other, so they cannot be merged into one contiguous array.
+#
+# That is exactly how the reference implementation treats them: it trains on the
+# grouped train split and evaluates each grouped test entry on its own. Since
+# data/datasets.py now carries `train_values` and utils/build.py exposes
+# `train_series*`, training reads the 1488-step train array while evaluation
+# reads the 1469-step test array. num_test_windows = 56 is therefore the
+# PUBLISHED protocol again, and it no longer starves the training range.
+#
+# Cost warning: 56 windows x 100 samples with a MAF flow at D=1214 is slow,
+# because the MAF inverse is sequential in D (§2.1). Budget for it.
+
+dataset:
+  name: taxi                # -> gluonts taxi_30min
+  cache_dir: data_raw/gluonts
+  freq: "30min"             # [paper] Table 2: 30-minutely
+  num_series: 1214          # [paper] Table 2
+  total_timesteps: 1488     # [paper] Table 2
+  prediction_length: 24     # [paper] Table 2
+  context_length: 24        # [ours]
+  lags: [1, 4, 12, 24, 48]  # [official] pytorch-ts minute-frequency lags
+  time_features: ["minute_of_hour", "hour_of_day", "day_of_week"]  # Fourier pairs
+  dequantize: true          # [paper] §5.2: counts
+  strict: true
+  require_gluonts: true
+
+flow:
+  type: maf
+  num_blocks: 5
+  hidden: 100
+  activation: elu
+  batch_norm: true
+  bn_min_var: 1.0e-4
+  scale_clamp: tanh
+  maf_log_scale_bound: 3.0
+  maf_mu_bound: 10.0
+
+backbone:
+  type: lstm
+  hidden_size: 40
+  d_model: 32
+  num_layers: 2
+  dropout: 0.1
+  n_heads: 8
+  num_encoder_layers: 3
+  num_decoder_layers: 3
+
+training:
+  lr: 1.0e-3
+  epochs: 40
+  batch_size: 64            # [paper] Appendix D.2
+  batches_per_epoch: 100
+  grad_clip: 0.0
+  maf_grad_clip: 5.0
+  seed: 42
+  val_windows: 0
+  select_metric: last
+  validation_num_samples: 20
+  validation_seed: 1729
+  validation_interval: 1
+  lr_schedule: onecycle
+  max_lr: 3.0e-3
+
+evaluation:
+  num_samples: 100
+  num_test_windows: 56      # [paper] the published Taxi protocol: taxi_30min
+                            #         has 56 rolling evaluation dates
+  temperature: 1.0
+
+# Reference numbers: copy the Taxi column of Table 1 from the paper.
+
+model:
+  condition_bound: 10.0

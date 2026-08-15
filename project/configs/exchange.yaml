@@ -1,0 +1,83 @@
+# LSTM-Real-NVP on Exchange (D=8) -- the reference config for M4/M5.
+#
+# Every value is tagged with where it comes from:
+#   [paper]  stated in the paper (section given)
+#   [ours]   our decision, the paper does not specify it
+# Keep these tags. In the presentation you must be able to say which numbers are
+# reproductions and which are your own choices.
+
+dataset:
+  name: exchange            # -> gluonts exchange_rate_nips (see data/datasets.py)
+  cache_dir: data_raw/gluonts   # [ours] where gluonts caches the dataset
+  fallback_path: data_raw/exchange_rate.txt.gz
+                            # [ours] used only if gluonts is unavailable
+  freq: "B"                 # [paper] Appendix A, Table 2: daily; the GluonTS copy
+                            #         is business-daily and the loader is
+                            #         authoritative for this field
+  num_series: 8             # [paper] Appendix A, Table 2: D = 8 (checked on load)
+  total_timesteps: 6071     # [paper] Appendix A, Table 2 (checked on load)
+  prediction_length: 30     # [paper] Appendix A, Table 2
+  context_length: 30        # [ours]  = prediction_length (GluonTS convention);
+                            #         the paper only says "random window of size T"
+  lags: [1, 2]              # [official] pytorch-ts business-day lags
+  time_features: ["day_of_week", "day_of_year"]  # Fourier pairs
+                                   #         (built from real dates, see
+                                   #         data/covariates.py)
+  dequantize: false         # [paper] §5.2 -- only Taxi and Wikipedia are counts
+  strict: true              # reproduction: shape mismatch is fatal
+  require_gluonts: true     # no raw-file fallback in paper-comparable runs
+
+flow:
+  type: realnvp             # realnvp | maf   [paper] §5.2 variants
+  num_blocks: 5             # [paper] Appendix D.2: K = 5
+  hidden: 100               # [paper] Appendix D.2: hidden dimension 100
+  activation: elu           # [paper] Appendix D.2: ELU
+  batch_norm: true          # [paper] §2.1 + Figure 1: BatchNorm between blocks
+  bn_min_var: 1.0e-4           # [official] RealNVP path remains unchanged
+  scale_clamp: tanh         # [ours]  bound s(.) before exp(); not in the paper but
+                            #         required for numerical stability
+  maf_log_scale_bound: 3.0
+  maf_mu_bound: 10.0  # [ours] minimal overflow guard for MAF sampling/training
+
+backbone:
+  type: lstm                # lstm | transformer
+  hidden_size: 40           # [ours]  Appendix D.2 defers to Salinas et al. (2019a)
+  d_model: 32               # [official] TransformerTempFlow default
+  num_layers: 2             # [ours]  same
+  dropout: 0.1              # [official] TempFlowEstimator default
+  # Transformer-only knobs (Appendix D.2: H=8, n=3, m=3, dropout 0.1):
+  n_heads: 8
+  num_encoder_layers: 3
+  num_decoder_layers: 3
+
+training:
+  lr: 1.0e-3                # [paper] Appendix D.2
+  epochs: 40                # [paper] Appendix D.2: max 40 epochs
+  batch_size: 64            # [paper] Appendix D.2
+  batches_per_epoch: 100    # [paper] Appendix D.2
+  grad_clip: 0.0            # [official] no gradient clipping
+  maf_grad_clip: 5.0       # [ours] MAF-only protection against gradient spikes
+  seed: 42                  # [ours]
+  val_windows: 0            # [official default]; account1 runner overrides to 5
+  select_metric: last        # [official default]; account1 also reports nll/crps
+  validation_num_samples: 20
+  validation_seed: 1729
+  validation_interval: 1
+  lr_schedule: onecycle
+  max_lr: 3.0e-3
+
+evaluation:
+  num_samples: 100          # [paper] §5.2: "We take 100 samples"
+  num_test_windows: 5       # [paper-derived] the GluonTS exchange_rate_nips split
+                            #         has 5 rolling evaluations
+  temperature: 1.0          # [paper] §4.3: no reduced-temperature sampling
+
+# Reference CRPS_sum for this setup (paper Table 1, mean over 20 reruns):
+#   LSTM-Real-NVP    0.0064 +/- 0.003
+#   LSTM-MAF         0.005  +/- 0.003
+#   Transformer-MAF  0.005  +/- 0.003
+# Those are NORMALIZED values (divided by sum_t |sum_i x_t^i|), which is what
+# evaluation/metrics.py reports as crps_sum.
+
+model:
+  condition_bound: 10.0

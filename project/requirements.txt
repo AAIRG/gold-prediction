@@ -1,0 +1,15 @@
+# Core
+torch>=2.1,<3.0
+numpy>=1.24
+pandas>=2.0,<3.0
+matplotlib>=3.7,<4.0
+pyyaml>=6.0,<7.0
+
+# Datasets: gluonts is used ONLY to fetch the `*_nips` (GP-Copula / mv_release)
+# copies of the six datasets of Appendix A, Table 2 -- no gluonts model code is
+# imported anywhere in flowforecast/.
+gluonts==0.17.0
+orjson>=3.9          # optional, silences the gluonts json warning and speeds loading
+
+# Tests
+pytest>=7.4

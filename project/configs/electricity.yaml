@@ -1,0 +1,67 @@
+# LSTM-Real-NVP on Electricity (D=370).  Tags: [paper] / [ours] -- see exchange.yaml.
+#
+# The 370-series version is the GP-Copula / GluonTS `electricity_nips` file, not
+# the LSTNet electricity.txt (which has 321 series).
+
+dataset:
+  name: electricity         # -> gluonts electricity_nips
+  cache_dir: data_raw/gluonts
+  freq: "H"                 # [paper] Table 2: hourly
+  num_series: 370           # [paper] Table 2
+  total_timesteps: 5790     # [paper] Table 2
+  prediction_length: 24     # [paper] Table 2
+  context_length: 24        # [ours]
+  lags: [1, 24, 168]        # [paper] Appendix D.1
+  time_features: ["hour_of_day", "day_of_week"]  # official Fourier pairs
+  dequantize: false
+  strict: false             # official archive reports 5833 vs Table 2's 5790
+  require_gluonts: true
+
+flow:
+  type: realnvp
+  num_blocks: 5
+  hidden: 100
+  activation: elu
+  batch_norm: true
+  bn_min_var: 1.0e-4
+  scale_clamp: tanh
+  maf_log_scale_bound: 3.0
+  maf_mu_bound: 10.0
+
+backbone:
+  type: lstm
+  hidden_size: 40
+  d_model: 32
+  num_layers: 2
+  dropout: 0.1
+  n_heads: 8
+  num_encoder_layers: 3
+  num_decoder_layers: 3
+
+training:
+  lr: 1.0e-3
+  epochs: 40
+  batch_size: 64
+  batches_per_epoch: 100
+  grad_clip: 0.0
+  maf_grad_clip: 5.0
+  seed: 42
+  val_windows: 0
+  select_metric: last
+  validation_num_samples: 20
+  validation_seed: 1729
+  validation_interval: 1
+  lr_schedule: onecycle
+  max_lr: 3.0e-3
+
+evaluation:
+  num_samples: 100
+  num_test_windows: 7       # [paper-derived] electricity_nips: 7 rolling evaluations
+  temperature: 1.0
+
+# Reference numbers: read the Electricity column of Table 1 in the paper and put
+# it here yourself -- do not trust a remembered value. Our CRPS_sum is normalized
+# the same way (divided by sum_t |sum_i x_t^i|), so the two are comparable.
+
+model:
+  condition_bound: 10.0

@@ -1,0 +1,66 @@
+# LSTM-MAF on Wikipedia (D=2000, count data).  Tags: [paper] / [ours].
+#
+# §5.2: Wikipedia is count data, so the density target is dequantized with
+# Uniform[0,1) noise and then scaled inside models/inputs.py. Without it a
+# flow can push the likelihood of discrete data to infinity (§2.1).
+
+dataset:
+  name: wikipedia           # -> gluonts wiki2000_nips
+  cache_dir: data_raw/gluonts
+  freq: "D"                 # [paper] Table 2: daily
+  num_series: 2000          # [paper] Table 2
+  total_timesteps: 792      # [paper] Table 2
+  prediction_length: 30     # [paper] Table 2
+  context_length: 30        # [ours]
+  lags: [1, 7, 14]          # [paper] Appendix D.1, daily data
+  time_features: ["day_of_week"]   # official Fourier pair
+  dequantize: true          # [paper] §5.2: counts -> dequantize, then mean-scale
+  strict: true
+  require_gluonts: true
+
+flow:
+  type: maf
+  num_blocks: 5
+  hidden: 100
+  activation: elu
+  batch_norm: true
+  bn_min_var: 1.0e-4
+  scale_clamp: tanh
+  maf_log_scale_bound: 3.0
+  maf_mu_bound: 10.0
+
+backbone:
+  type: lstm
+  hidden_size: 40
+  d_model: 32
+  num_layers: 2
+  dropout: 0.1
+  n_heads: 8
+  num_encoder_layers: 3
+  num_decoder_layers: 3
+
+training:
+  lr: 1.0e-3
+  epochs: 40
+  batch_size: 64            # [paper] Appendix D.2
+  batches_per_epoch: 100
+  grad_clip: 0.0
+  maf_grad_clip: 5.0
+  seed: 42
+  val_windows: 0
+  select_metric: last
+  validation_num_samples: 20
+  validation_seed: 1729
+  validation_interval: 1
+  lr_schedule: onecycle
+  max_lr: 3.0e-3
+
+evaluation:
+  num_samples: 100
+  num_test_windows: 5       # [paper-derived] wiki2000_nips: 5 rolling evaluations
+  temperature: 1.0
+
+# Reference numbers: copy the Wikipedia column of Table 1 from the paper.
+
+model:
+  condition_bound: 10.0
