@@ -3,3 +3,9 @@ __pycache__/
 .pytest_cache/
 .streamlit/
 .streamlit_gold_yahoo_*
+
+# Built by tools/make_colab_bundle.py for upload; rebuild it, do not commit it.
+gold_yahoo_colab.zip
+
+# Probability tables exported by the app's download button.
+[0-9][0-9][0-9][0-9]-[0-9][0-9]-*_export.csv

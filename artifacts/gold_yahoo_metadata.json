@@ -1,7 +1,9 @@
 {
-  "model_name": "Transformer-MAF",
+  "model_name": "LSTM-Real-NVP",
   "ticker": "GC=F",
   "target": "multi_horizon_log_return",
+  "target_definition": "return_h(t) = log(close(t) / close(t - h))",
+  "reporting": "horizon returns are reconstructed from the sampled price path spliced onto observed closes, so every h-day window ends on its own forecast day and already-traded days enter as known closes",
   "return_horizons": [
     1,
     3,
@@ -21,63 +23,478 @@
     1,
     2
   ],
+  "time_feature_spec": {
+    "name": "stable_fourier_v1",
+    "freq": "B",
+    "features": [
+      "dayofweek",
+      "dayofyear"
+    ],
+    "periods": {
+      "dayofweek": 7,
+      "dayofyear": 366
+    },
+    "channels_per_feature": 2,
+    "channel_order": "cos_then_sin"
+  },
   "checkpoint_selection": "last_epoch",
   "training_epochs": 40,
-  "training_end_date": "2026-06-03",
-  "validation_end_date": "2026-08-14",
-  "config": {
-    "dataset": {
-      "name": "gold_yahoo_multi_horizon",
-      "freq": "B",
-      "num_series": 3,
-      "prediction_length": 10,
-      "context_length": 30,
-      "lags": [
-        1,
-        2
-      ],
-      "dequantize": false
+  "training_end_date": "2025-01-13",
+  "validation_end_date": "2025-10-28",
+  "test_end_date": "2026-08-17",
+  "trained_at": "2026-08-17T06:13:25.033159+00:00",
+  "inference_seed": 20260817,
+  "models": [
+    {
+      "key": "lstm_realnvp",
+      "name": "LSTM-Real-NVP",
+      "baseline": null,
+      "description": "LSTM backbone conditioning a Real-NVP coupling flow over the three horizons.",
+      "parameters": 439183,
+      "checkpoint": "models/lstm_realnvp.pt",
+      "config": {
+        "dataset": {
+          "name": "gold_yahoo_multi_horizon",
+          "freq": "B",
+          "num_series": 3,
+          "prediction_length": 10,
+          "context_length": 30,
+          "lags": [
+            1,
+            2
+          ],
+          "dequantize": false
+        },
+        "flow": {
+          "type": "realnvp",
+          "num_blocks": 5,
+          "hidden": 100,
+          "batch_norm": true,
+          "bn_min_var": 0.0001,
+          "maf_log_scale_bound": 3.0,
+          "maf_mu_bound": 10.0
+        },
+        "backbone": {
+          "type": "lstm",
+          "d_model": 32,
+          "n_heads": 8,
+          "num_encoder_layers": 3,
+          "num_decoder_layers": 3,
+          "dropout": 0.1,
+          "hidden_size": 40,
+          "num_layers": 2
+        },
+        "model": {
+          "conditioning_length": 200,
+          "condition_bound": 10.0
+        },
+        "training": {
+          "lr": 0.001,
+          "epochs": 40,
+          "batch_size": 64,
+          "batches_per_epoch": 100,
+          "maf_grad_clip": 5.0,
+          "grad_clip": 5.0,
+          "seed": 1,
+          "val_windows": 20,
+          "select_metric": "last",
+          "validation_num_samples": 100,
+          "validation_seed": 1729,
+          "validation_interval": 5,
+          "lr_schedule": "onecycle",
+          "max_lr": 0.003
+        },
+        "evaluation": {
+          "num_samples": 100,
+          "num_test_windows": 20
+        }
+      }
     },
-    "flow": {
-      "type": "maf",
-      "num_blocks": 5,
-      "hidden": 100,
-      "batch_norm": true,
-      "bn_min_var": 0.0001,
-      "maf_log_scale_bound": 3.0,
-      "maf_mu_bound": 10.0
+    {
+      "key": "lstm_maf",
+      "name": "LSTM-MAF",
+      "baseline": null,
+      "description": "LSTM backbone conditioning a masked autoregressive flow over the three horizons.",
+      "parameters": 236183,
+      "checkpoint": "models/lstm_maf.pt",
+      "config": {
+        "dataset": {
+          "name": "gold_yahoo_multi_horizon",
+          "freq": "B",
+          "num_series": 3,
+          "prediction_length": 10,
+          "context_length": 30,
+          "lags": [
+            1,
+            2
+          ],
+          "dequantize": false
+        },
+        "flow": {
+          "type": "maf",
+          "num_blocks": 5,
+          "hidden": 100,
+          "batch_norm": true,
+          "bn_min_var": 0.0001,
+          "maf_log_scale_bound": 3.0,
+          "maf_mu_bound": 10.0
+        },
+        "backbone": {
+          "type": "lstm",
+          "d_model": 32,
+          "n_heads": 8,
+          "num_encoder_layers": 3,
+          "num_decoder_layers": 3,
+          "dropout": 0.1,
+          "hidden_size": 40,
+          "num_layers": 2
+        },
+        "model": {
+          "conditioning_length": 200,
+          "condition_bound": 10.0
+        },
+        "training": {
+          "lr": 0.001,
+          "epochs": 40,
+          "batch_size": 64,
+          "batches_per_epoch": 100,
+          "maf_grad_clip": 5.0,
+          "grad_clip": 5.0,
+          "seed": 1,
+          "val_windows": 20,
+          "select_metric": "last",
+          "validation_num_samples": 100,
+          "validation_seed": 1729,
+          "validation_interval": 5,
+          "lr_schedule": "onecycle",
+          "max_lr": 0.003
+        },
+        "evaluation": {
+          "num_samples": 100,
+          "num_test_windows": 20
+        }
+      }
     },
-    "backbone": {
-      "type": "transformer",
-      "d_model": 32,
-      "n_heads": 8,
-      "num_encoder_layers": 3,
-      "num_decoder_layers": 3,
-      "dropout": 0.1
+    {
+      "key": "transformer_maf",
+      "name": "Transformer-MAF",
+      "baseline": null,
+      "description": "Attention backbone conditioning a masked autoregressive flow; the paper's strongest variant.",
+      "parameters": 302801,
+      "checkpoint": "models/transformer_maf.pt",
+      "config": {
+        "dataset": {
+          "name": "gold_yahoo_multi_horizon",
+          "freq": "B",
+          "num_series": 3,
+          "prediction_length": 10,
+          "context_length": 30,
+          "lags": [
+            1,
+            2
+          ],
+          "dequantize": false
+        },
+        "flow": {
+          "type": "maf",
+          "num_blocks": 5,
+          "hidden": 100,
+          "batch_norm": true,
+          "bn_min_var": 0.0001,
+          "maf_log_scale_bound": 3.0,
+          "maf_mu_bound": 10.0
+        },
+        "backbone": {
+          "type": "transformer",
+          "d_model": 32,
+          "n_heads": 8,
+          "num_encoder_layers": 3,
+          "num_decoder_layers": 3,
+          "dropout": 0.1,
+          "hidden_size": 40,
+          "num_layers": 2
+        },
+        "model": {
+          "conditioning_length": 200,
+          "condition_bound": 10.0
+        },
+        "training": {
+          "lr": 0.001,
+          "epochs": 40,
+          "batch_size": 64,
+          "batches_per_epoch": 100,
+          "maf_grad_clip": 5.0,
+          "grad_clip": 5.0,
+          "seed": 1,
+          "val_windows": 20,
+          "select_metric": "last",
+          "validation_num_samples": 100,
+          "validation_seed": 1729,
+          "validation_interval": 5,
+          "lr_schedule": "onecycle",
+          "max_lr": 0.003
+        },
+        "evaluation": {
+          "num_samples": 100,
+          "num_test_windows": 20
+        }
+      }
     },
-    "model": {
-      "conditioning_length": 200,
-      "condition_bound": 10.0
-    },
-    "training": {
-      "lr": 0.001,
-      "epochs": 40,
-      "batch_size": 64,
-      "batches_per_epoch": 100,
-      "maf_grad_clip": 5.0,
-      "seed": 42,
-      "val_windows": 5,
-      "select_metric": "last",
-      "validation_num_samples": 100,
-      "validation_seed": 1729,
-      "validation_interval": 5,
-      "lr_schedule": "onecycle",
-      "max_lr": 0.003
-    },
-    "evaluation": {
-      "num_samples": 500,
-      "num_test_windows": 5
+    {
+      "key": "veclstm",
+      "name": "Vec-LSTM-ind-scaling",
+      "baseline": "veclstm",
+      "description": "Baseline with a diagonal Gaussian head: no cross-horizon dependency at a fixed day.",
+      "parameters": 22169,
+      "checkpoint": "models/veclstm.pt",
+      "config": {
+        "dataset": {
+          "name": "gold_yahoo_multi_horizon",
+          "freq": "B",
+          "num_series": 3,
+          "prediction_length": 10,
+          "context_length": 30,
+          "lags": [
+            1,
+            2
+          ],
+          "dequantize": false
+        },
+        "flow": {
+          "type": "maf",
+          "num_blocks": 5,
+          "hidden": 100,
+          "batch_norm": true,
+          "bn_min_var": 0.0001,
+          "maf_log_scale_bound": 3.0,
+          "maf_mu_bound": 10.0
+        },
+        "backbone": {
+          "type": "lstm",
+          "d_model": 32,
+          "n_heads": 8,
+          "num_encoder_layers": 3,
+          "num_decoder_layers": 3,
+          "dropout": 0.1,
+          "hidden_size": 40,
+          "num_layers": 2
+        },
+        "model": {
+          "conditioning_length": 200,
+          "condition_bound": 10.0
+        },
+        "training": {
+          "lr": 0.001,
+          "epochs": 40,
+          "batch_size": 64,
+          "batches_per_epoch": 100,
+          "maf_grad_clip": 5.0,
+          "grad_clip": 5.0,
+          "seed": 1,
+          "val_windows": 20,
+          "select_metric": "last",
+          "validation_num_samples": 100,
+          "validation_seed": 1729,
+          "validation_interval": 5,
+          "lr_schedule": "onecycle",
+          "max_lr": 0.003
+        },
+        "evaluation": {
+          "num_samples": 100,
+          "num_test_windows": 20
+        }
+      }
     }
+  ],
+  "boosting": {
+    "weights": {
+      "lstm_realnvp": 0.0,
+      "lstm_maf": 0.75,
+      "transformer_maf": 0.25,
+      "veclstm": 0.0
+    },
+    "counts": {
+      "lstm_realnvp": 0,
+      "lstm_maf": 18,
+      "transformer_maf": 6,
+      "veclstm": 0
+    },
+    "pool_size": 24,
+    "rounds": [
+      {
+        "round": 1,
+        "picked": "lstm_maf",
+        "crps_sum": 0.6293473553110508
+      },
+      {
+        "round": 2,
+        "picked": "lstm_maf",
+        "crps_sum": 0.6293473553110508
+      },
+      {
+        "round": 3,
+        "picked": "transformer_maf",
+        "crps_sum": 0.6282183477007541
+      },
+      {
+        "round": 4,
+        "picked": "lstm_maf",
+        "crps_sum": 0.628013086205728
+      },
+      {
+        "round": 5,
+        "picked": "lstm_maf",
+        "crps_sum": 0.6280459335959443
+      },
+      {
+        "round": 6,
+        "picked": "lstm_maf",
+        "crps_sum": 0.6281328336424353
+      },
+      {
+        "round": 7,
+        "picked": "transformer_maf",
+        "crps_sum": 0.628061258405833
+      },
+      {
+        "round": 8,
+        "picked": "lstm_maf",
+        "crps_sum": 0.628013086205728
+      },
+      {
+        "round": 9,
+        "picked": "lstm_maf",
+        "crps_sum": 0.6280168899144378
+      },
+      {
+        "round": 10,
+        "picked": "lstm_maf",
+        "crps_sum": 0.6280459335959443
+      },
+      {
+        "round": 11,
+        "picked": "transformer_maf",
+        "crps_sum": 0.6280368343227121
+      },
+      {
+        "round": 12,
+        "picked": "lstm_maf",
+        "crps_sum": 0.628013086205728
+      },
+      {
+        "round": 13,
+        "picked": "lstm_maf",
+        "crps_sum": 0.62801187328298
+      },
+      {
+        "round": 14,
+        "picked": "lstm_maf",
+        "crps_sum": 0.6280246095236964
+      },
+      {
+        "round": 15,
+        "picked": "transformer_maf",
+        "crps_sum": 0.6280281377901944
+      },
+      {
+        "round": 16,
+        "picked": "lstm_maf",
+        "crps_sum": 0.628013086205728
+      },
+      {
+        "round": 17,
+        "picked": "lstm_maf",
+        "crps_sum": 0.6280106015403497
+      },
+      {
+        "round": 18,
+        "picked": "lstm_maf",
+        "crps_sum": 0.6280168899144378
+      },
+      {
+        "round": 19,
+        "picked": "transformer_maf",
+        "crps_sum": 0.62802388867347
+      },
+      {
+        "round": 20,
+        "picked": "lstm_maf",
+        "crps_sum": 0.628013086205728
+      },
+      {
+        "round": 21,
+        "picked": "lstm_maf",
+        "crps_sum": 0.6280102944763759
+      },
+      {
+        "round": 22,
+        "picked": "lstm_maf",
+        "crps_sum": 0.6280135123068069
+      },
+      {
+        "round": 23,
+        "picked": "lstm_maf",
+        "crps_sum": 0.6280212377306792
+      },
+      {
+        "round": 24,
+        "picked": "transformer_maf",
+        "crps_sum": 0.628013086205728
+      }
+    ],
+    "ensemble_metrics": {
+      "crps_sum_test": 0.7163232067333366,
+      "crps_test": 0.6988155958079341,
+      "mse_test": 0.0009292219752026629
+    },
+    "booster_enabled": false,
+    "booster_gain_pct": -51.32787253437539,
+    "booster_metrics": {
+      "gain_pct": -51.32787253437539,
+      "min_gain_pct": 1.0,
+      "crps_sum_before": 0.6099895835507151,
+      "crps_sum_after": 0.9230842594685934,
+      "crps_before": 0.6080861064718356,
+      "crps_after": 0.8740838022166687,
+      "mse_before": 0.0006302956700299652,
+      "mse_after": 0.001042508317532481,
+      "fit_rows": 3600.0
+    },
+    "feature_names": [
+      "forecast_step",
+      "horizon",
+      "mixture_median",
+      "mixture_spread",
+      "return_last_1d",
+      "return_mean_5d",
+      "return_std_20d",
+      "dayofweek_cos",
+      "dayofweek_sin",
+      "dayofyear_cos",
+      "dayofyear_sin"
+    ]
+  },
+  "experiment_protocol": {
+    "seeds": [
+      1,
+      2,
+      3
+    ],
+    "test_windows": 20,
+    "validation_windows": 20,
+    "prediction_length": 10,
+    "evaluation_samples": 100,
+    "training_rows": 6107,
+    "total_rows": 6507,
+    "ensemble_rounds": 24,
+    "boost_fit_windows": 120,
+    "boost_gate_windows": 40
+  },
+  "winner": {
+    "model_key": "lstm_realnvp",
+    "model_name": "LSTM-Real-NVP",
+    "crps_sum": 0.7087800416876604,
+    "crps_sum_stderr": 0.004276649360435663
   },
   "model_contract": "tempflow_v5_official_parity"
 }

@@ -1,0 +1,2 @@
+Data set,LSTM-Real-NVP,LSTM-MAF,Transformer-MAF,Vec-LSTM-ind-scaling,Boosted ensemble,Boosted + residual GB
+Gold (GC=F),0.709±0.004,0.711±0.003,0.756±0.005,0.909±0.020,0.719±0.003,0.765±0.002

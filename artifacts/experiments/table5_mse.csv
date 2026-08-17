@@ -1,0 +1,5 @@
+Data set,LSTM-Real-NVP,LSTM-MAF,Transformer-MAF,Vec-LSTM-ind-scaling,Boosted ensemble,Boosted + residual GB
+Gold (GC=F),9.0x10^-4,9.0x10^-4,1.0x10^-3,1.3x10^-3,9.3x10^-4,1.0x10^-3
+Gold (GC=F) - 1-day return,3.5x10^-4,3.5x10^-4,3.6x10^-4,4.0x10^-4,3.5x10^-4,4.1x10^-4
+Gold (GC=F) - 3-day return,8.6x10^-4,8.6x10^-4,9.2x10^-4,1.2x10^-3,8.8x10^-4,10.0x10^-4
+Gold (GC=F) - 7-day return,1.5x10^-3,1.5x10^-3,1.9x10^-3,2.2x10^-3,1.6x10^-3,1.7x10^-3
